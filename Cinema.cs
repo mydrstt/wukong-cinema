@@ -18,6 +18,12 @@ public static class Program {
         string folder=AppDomain.CurrentDomain.BaseDirectory;
         try {
             if(args.Length>0 && args[0]=="--render-check") { Cinema.RenderCheck(folder); return; }
+            if(args.Length>0 && args[0]=="--render-wallpaper") {
+                int width=3840,height=2160;
+                if(args.Length>=4 && (!int.TryParse(args[2],out width) || !int.TryParse(args[3],out height)))
+                    throw new ArgumentException("Wallpaper dimensions must be whole numbers.");
+                Cinema.RenderWallpaper(folder,args.Length>1 ? args[1] : Path.Combine(folder,"wallpaper-always-wukong.jpg"),width,height); return;
+            }
             if(args.Length>0 && args[0]=="--stop") {
                 EventWaitHandle evt; if(EventWaitHandle.TryOpenExisting("Local\\WukongCinemaQuit",out evt)) { evt.Set(); evt.Dispose(); } return;
             }
@@ -44,6 +50,8 @@ public class Scene : Grid {
     readonly Image bleed;
     readonly System.Windows.Shapes.Rectangle bleedShade;
     readonly Brush wideEdgeMask;
+    readonly Image backgroundImage;
+    readonly BlurEffect backgroundBlur;
     readonly System.Windows.Shapes.Rectangle shade;
     readonly System.Windows.Shapes.Rectangle vignette;
     readonly System.Windows.Shapes.Ellipse aura;
@@ -67,7 +75,9 @@ public class Scene : Grid {
         wideEdgeMask=mask;
         var viewport=new Canvas(); Children.Add(viewport); viewport.Children.Add(art);
         SizeChanged+=(s,e)=>UpdateTransform();
-        art.Children.Add(new Image { Source=original,Width=2048,Height=1152,Stretch=Stretch.Fill });
+        backgroundBlur=new BlurEffect { Radius=0,RenderingBias=RenderingBias.Performance };
+        backgroundImage=new Image { Source=original,Width=2048,Height=1152,Stretch=Stretch.Fill };
+        art.Children.Add(backgroundImage);
         shade=new System.Windows.Shapes.Rectangle { Width=2048,Height=1152,Fill=Brushes.Black };
         art.Children.Add(shade);
         var edge=new RadialGradientBrush { Center=new Point(.5,.49),GradientOrigin=new Point(.5,.49),RadiusX=.72,RadiusY=.8 };
@@ -109,11 +119,13 @@ public class Scene : Grid {
     public void SetScene(double p,double z) {
         p=Math.Max(0,Math.Min(1,p));
         zoomProgress=Math.Max(0,Math.Min(1,z)); UpdateTransform();
-        bleedShade.Opacity=.22+.32*p;
-        shade.Opacity=.54*p;
-        vignette.Opacity=.68*p;
-        aura.Opacity=.48*p;
-        portrait.Opacity=Math.Max(0,Math.Min(1,p/.55));
+        backgroundBlur.Radius=12*p;
+        backgroundImage.Effect=p<.001 ? null : backgroundBlur;
+        bleedShade.Opacity=.16+.42*p;
+        shade.Opacity=.10+.58*p;
+        vignette.Opacity=.12+.64*p;
+        aura.Opacity=.07+.35*p;
+        portrait.Opacity=1;
     }
     public void SetDarkness(double p) { SetScene(p,p); }
 }
@@ -187,10 +199,11 @@ public class Cinema : Application {
         if(!Native.RegisterHotKey(hwnd,1,0x4003,0x47)) throw new Exception("Ctrl+Alt+G is already registered by another application.");
         Native.RegisterHotKey(hwnd,2,0x4007,0x47);
         foreach(var screen in Forms.Screen.AllScreens) {
+            var b=screen.Bounds;
             var scene=new Scene(original,newPortrait);
             var w=new Window { Title="Wukong Cinema",Content=scene,Background=Brushes.Black,WindowStyle=WindowStyle.None,
                 ResizeMode=ResizeMode.NoResize,ShowInTaskbar=false,Topmost=true,AllowsTransparency=true,Opacity=0,Cursor=Cursors.None };
-            var b=screen.Bounds; var wh=new WindowInteropHelper(w).EnsureHandle();
+            var wh=new WindowInteropHelper(w).EnsureHandle();
             var transform=HwndSource.FromHwnd(wh).CompositionTarget.TransformFromDevice;
             var location=transform.Transform(new Point(b.X,b.Y)); var size=transform.Transform(new Point(b.Width,b.Height));
             w.Left=location.X; w.Top=location.Y; w.Width=size.X; w.Height=size.Y;
@@ -211,7 +224,9 @@ public class Cinema : Application {
     }
     void LoadArt() {
         var b=new BitmapImage(); b.BeginInit(); b.CacheOption=BitmapCacheOption.OnLoad;
-        b.UriSource=new Uri(Path.Combine(folder,"original-wallpaper.jpg")); b.EndInit(); b.Freeze(); original=b;
+        // The desktop and idle scene use the same clean background, so the
+        // character never appears twice as the blur/darkness animates.
+        b.UriSource=new Uri(Path.Combine(folder,"landscape-clean.png")); b.EndInit(); b.Freeze(); original=b;
         var portraitBitmap=new BitmapImage(); portraitBitmap.BeginInit(); portraitBitmap.CacheOption=BitmapCacheOption.OnLoad;
         portraitBitmap.UriSource=new Uri(Path.Combine(folder,"wukong-original-upscaled.png")); portraitBitmap.EndInit(); portraitBitmap.Freeze(); newPortrait=portraitBitmap;
     }
@@ -226,11 +241,20 @@ public class Cinema : Application {
         RenderScene(c,1,2100,900,Path.Combine(folder,"preview-ultrawide.png"));
         RenderScene(c,1,900,1600,Path.Combine(folder,"preview-portrait.png"));
     }
+    public static void RenderWallpaper(string folder,string path,int width,int height) {
+        if(width<320 || height<240 || width>10000 || height>10000)
+            throw new ArgumentOutOfRangeException("Wallpaper dimensions are outside the supported range.");
+        var c=new Cinema { folder=folder }; c.LoadArt();
+        RenderScene(c,0,width,height,path);
+    }
     static void RenderScene(Cinema c,double p,int width,int height,string path) {
         var scene=new Scene(c.original,c.newPortrait); scene.SetDarkness(p);
         scene.Measure(new Size(width,height)); scene.Arrange(new Rect(0,0,width,height)); scene.UpdateLayout();
         var target=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32); target.Render(scene);
-        var encoder=new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(target));
+        BitmapEncoder encoder=Path.GetExtension(path).Equals(".jpg",StringComparison.OrdinalIgnoreCase)
+            ? (BitmapEncoder)new JpegBitmapEncoder { QualityLevel=96 }
+            : new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(target));
         using(var f=File.Create(path)) encoder.Save(f);
     }
 }

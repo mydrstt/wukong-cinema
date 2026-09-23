@@ -1,5 +1,6 @@
 # Generated previews and local diagnostics
 preview-*.png
+wallpaper-always-wukong.jpg
 runtime.log
 startup-error.log
 *.tmp
@@ -10,7 +11,6 @@ WukongCinema.before-edge-cleanup.exe
 preview-before-edge-cleanup.png
 WukongIdleScreen.ps1
 silhouette*.txt
-landscape-clean.png
 landscape-clean-prompt.txt
 wukong-cutout.png
 wukong-current.png

@@ -12,5 +12,14 @@ if ($existing) {
     }
     Unregister-ScheduledTask -TaskName 'WukongCinema' -TaskPath '\' -Confirm:$false
 }
-if (Test-Path -LiteralPath $exe) { & $exe --stop }
+if (Test-Path -LiteralPath $exe) {
+    & $exe --stop
+    for ($attempt = 0; $attempt -lt 30; $attempt++) {
+        $running = @(Get-Process -Name WukongCinema -ErrorAction SilentlyContinue |
+            Where-Object { $_.Path -ieq $exe })
+        if ($running.Count -eq 0) { break }
+        Start-Sleep -Milliseconds 200
+    }
+}
+& (Join-Path $PSScriptRoot 'Set-Wallpaper.ps1') -Restore
 Write-Host 'Wukong Cinema autostart was removed for this user.'

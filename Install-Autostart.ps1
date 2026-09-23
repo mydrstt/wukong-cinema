@@ -60,6 +60,7 @@ $action.Path = $exe
 $action.Arguments = '--background'
 $action.WorkingDirectory = $PSScriptRoot
 
+& (Join-Path $PSScriptRoot 'Set-Wallpaper.ps1') -Install
 $null = $folder.RegisterTaskDefinition('WukongCinema', $task, 6, $user, $null, 3, $null)
 Start-ScheduledTask -TaskName 'WukongCinema'
 Write-Host "Wukong Cinema autostart is installed for this user: $exe"
