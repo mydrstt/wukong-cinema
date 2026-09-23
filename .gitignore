@@ -1,0 +1,18 @@
+# Generated previews and local diagnostics
+preview-*.png
+runtime.log
+startup-error.log
+*.tmp
+
+# Historical local experiments, not part of the distributable app
+Cinema.before-edge-cleanup.cs
+WukongCinema.before-edge-cleanup.exe
+preview-before-edge-cleanup.png
+WukongIdleScreen.ps1
+silhouette*.txt
+landscape-clean.png
+landscape-clean-prompt.txt
+wukong-cutout.png
+wukong-current.png
+wukong-idle-background.png
+wukong-new.png
