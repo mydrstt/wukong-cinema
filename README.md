@@ -8,7 +8,7 @@ Windows 10/11용 개인 대기 화면입니다. 5분 동안 입력이 없거나 
 
 1. GitHub의 **Code → Download ZIP**으로 받은 파일을 한 폴더에 압축 해제합니다. 아래 JPG, PNG와 EXE가 같은 폴더에 있어야 합니다.
 2. `Start-WukongIdleScreen.cmd`를 실행하면 백그라운드에서 시작합니다.
-3. 로그인할 때와 잠금 해제할 때 자동 실행하려면 `Install-Autostart.cmd`를 한 번 실행합니다. 현재 계정의 작업 스케줄러에만 등록되며 관리자 권한은 필요하지 않습니다.
+3. 로그인할 때와 잠금 해제할 때 자동 실행하려면 `Install-Autostart.cmd`를 한 번 실행합니다. 현재 계정의 작업 스케줄러에만 등록되며 관리자 권한은 필요하지 않습니다. 실행 파일이 있는 폴더를 직접 참조하므로 압축 해제한 폴더를 삭제하지 마세요. 나중에 폴더를 옮기거나 새 버전을 받았다면 새 폴더에서 `Install-Autostart.cmd`를 다시 실행하면 자동 시작 경로가 갱신됩니다.
 
 `Ctrl + Alt + G`는 즉시 미리보기, `Ctrl + Alt + Shift + G` 또는 `Stop-WukongIdleScreen.cmd`는 현재 실행 종료입니다. 자동 시작까지 제거하려면 `Remove-Autostart.cmd`를 실행하세요. 화면이 자동으로 뜨는 시간은 기본 5분입니다.
 
