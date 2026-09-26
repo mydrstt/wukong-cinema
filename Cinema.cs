@@ -50,8 +50,8 @@ public class Scene : Grid {
     readonly Image bleed;
     readonly System.Windows.Shapes.Rectangle bleedShade;
     readonly Brush wideEdgeMask;
-    readonly Image backgroundImage;
-    readonly BlurEffect backgroundBlur;
+    readonly Image blurredBackground;
+    readonly ScaleTransform artScale;
     readonly System.Windows.Shapes.Rectangle shade;
     readonly System.Windows.Shapes.Rectangle vignette;
     readonly System.Windows.Shapes.Ellipse aura;
@@ -67,6 +67,8 @@ public class Scene : Grid {
         bleedShade=new System.Windows.Shapes.Rectangle { Fill=Brushes.Black };
         Children.Add(bleedShade);
         art=new Canvas { Width=2048,Height=1152 };
+        artScale=new ScaleTransform();
+        art.RenderTransform=artScale;
         var mask=new LinearGradientBrush { StartPoint=new Point(0,.5),EndPoint=new Point(1,.5) };
         mask.GradientStops.Add(new GradientStop(Colors.Transparent,0));
         mask.GradientStops.Add(new GradientStop(Colors.White,.055));
@@ -75,9 +77,13 @@ public class Scene : Grid {
         wideEdgeMask=mask;
         var viewport=new Canvas(); Children.Add(viewport); viewport.Children.Add(art);
         SizeChanged+=(s,e)=>UpdateTransform();
-        backgroundBlur=new BlurEffect { Radius=0,RenderingBias=RenderingBias.Performance };
-        backgroundImage=new Image { Source=original,Width=2048,Height=1152,Stretch=Stretch.Fill };
-        art.Children.Add(backgroundImage);
+        art.Children.Add(new Image { Source=original,Width=2048,Height=1152,Stretch=Stretch.Fill });
+        // Blur once, then blend the cached result over the sharp background.
+        // Animating BlurEffect.Radius forced a full-image blur every frame.
+        blurredBackground=new Image { Source=original,Width=2048,Height=1152,Stretch=Stretch.Fill,
+            Effect=new BlurEffect { Radius=12,RenderingBias=RenderingBias.Performance },
+            CacheMode=new BitmapCache(),Opacity=0 };
+        art.Children.Add(blurredBackground);
         shade=new System.Windows.Shapes.Rectangle { Width=2048,Height=1152,Fill=Brushes.Black };
         art.Children.Add(shade);
         var edge=new RadialGradientBrush { Center=new Point(.5,.49),GradientOrigin=new Point(.5,.49),RadiusX=.72,RadiusY=.8 };
@@ -95,7 +101,8 @@ public class Scene : Grid {
         // Match the upscaled cutout to the original character. Feature
         // landmarks on the armour, head and staff put it at 98.8% scale,
         // roughly 9px right and 34px down in this 2048x1152 art space.
-        portrait=new Image { Source=newPortrait,Width=2023.4,Height=1138.2,Stretch=Stretch.Fill };
+        portrait=new Image { Source=newPortrait,Width=2023.4,Height=1138.2,
+            Stretch=Stretch.Fill,CacheMode=new BitmapCache() };
         Canvas.SetLeft(portrait,8.7); Canvas.SetTop(portrait,33.4);
         art.Children.Add(portrait);
     }
@@ -108,7 +115,7 @@ public class Scene : Grid {
             ? Math.Max(ActualWidth/2048,ActualHeight/1152)
             : Math.Min(ActualWidth/2048,ActualHeight/1152);
         double scale=baseScale*(1+.038*zoomProgress);
-        art.RenderTransform=new ScaleTransform(scale,scale);
+        artScale.ScaleX=scale; artScale.ScaleY=scale;
         Canvas.SetLeft(art,(ActualWidth-2048*scale)/2);
         Canvas.SetTop(art,(ActualHeight-1152*scale)/2);
         art.OpacityMask=ratio>1.95 ? wideEdgeMask : null;
@@ -119,8 +126,7 @@ public class Scene : Grid {
     public void SetScene(double p,double z) {
         p=Math.Max(0,Math.Min(1,p));
         zoomProgress=Math.Max(0,Math.Min(1,z)); UpdateTransform();
-        backgroundBlur.Radius=12*p;
-        backgroundImage.Effect=p<.001 ? null : backgroundBlur;
+        blurredBackground.Opacity=p;
         bleedShade.Opacity=.16+.42*p;
         shade.Opacity=.10+.58*p;
         vignette.Opacity=.12+.64*p;
@@ -228,6 +234,9 @@ public class Cinema : Application {
         // character never appears twice as the blur/darkness animates.
         b.UriSource=new Uri(Path.Combine(folder,"landscape-clean.png")); b.EndInit(); b.Freeze(); original=b;
         var portraitBitmap=new BitmapImage(); portraitBitmap.BeginInit(); portraitBitmap.CacheOption=BitmapCacheOption.OnLoad;
+        // Decode near display resolution instead of keeping a 6688px-wide
+        // texture in memory while the whole scene is transformed.
+        portraitBitmap.DecodePixelWidth=4096;
         portraitBitmap.UriSource=new Uri(Path.Combine(folder,"wukong-original-upscaled.png")); portraitBitmap.EndInit(); portraitBitmap.Freeze(); newPortrait=portraitBitmap;
     }
     public static void Start(string folder,double minutes) { Start(folder,minutes,true); }
